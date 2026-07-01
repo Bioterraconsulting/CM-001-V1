@@ -3,6 +3,8 @@ import pandas as pd
 from datetime import datetime, timedelta
 import os
 import requests
+import time
+from datetime import datetime
 
 # ==========================================
 # 1. CONFIGURACIÓN VISUAL Y ESTÉTICA PREMIUM (VERDE AMBIENTAL MODERNO)
@@ -180,42 +182,58 @@ LINK_PUBLICO = "https://docs.google.com/spreadsheets/d/1NeTtK_O9MSVxttpuDZmPBLVm
 
 def obtener_url_pestana(link_base, nombre_pestana):
     id_sheet = link_base.split("/d/")[1].split("/")[0]
+    # Este enlace limpio jala el CSV directo de Google
     return f"https://docs.google.com/spreadsheets/d/{id_sheet}/gviz/tq?tqx=out:csv&sheet={nombre_pestana}"
+
+
 
 # ---- TU FUNCIÓN DE CARGA (Actualizada para la nube) ----
 def cargar_datos(pestana):
     try:
-        url = obtener_url_pestana(LINK_PUBLICO, pestana)
-        return pd.read_csv(url)
+        # Llamamos a tu API de Google pasándole el nombre de la pestaña
+        respuesta = requests.get(f"{URL_API}?pestana={pestana}")
+        datos_json = respuesta.json()
+        
+        # Si está vacío, genera el DataFrame vacío base
+        if not datos_json:
+            raise Exception("Pestaña vacía")
+            
+        return pd.DataFrame(datos_json)
+        
     except Exception:
         columnas_base = {
             "Administrados": ["ID_Administrado", "RUC_DNI", "Razon_Social", "Tipo_Persona", "Condicion", "Fecha_Registro"],
-            "Petitorios_Concesiones": ["ID_Derecho", "Codigo_Unico", "Nombre_Derecho", "ID_Administrado", "Sustancia", "Hectareas", "Estado_Fase", "Fecha_Formulacion"],
-            "Calificaciones_Mineras": ["ID_Calificacion", "ID_Administrado", "Estrato", "Limite_Hectareas", "Fecha_Emision_Constancia", "Expediente_Cambio", "Resolucion_Cambio", "Fecha_Termino_Constancia"],
-            "Control_Vigencias": ["ID_Pago", "ID_Derecho", "Anio_Vigencia", "Monto_USD", "Estado_Pago", "Fecha_Pago"],
-            "Seguimiento_Tramites": ["ID_Seguimiento", "ID_Derecho", "Ruta_Legal", "Hito_Actual", "Fecha_Notificacion", "Fecha_Limite_Maxima", "Fecha_Envio_Subsanacion", "Copia_Petitorio_Ruta", "Estado_Hito"]
+            "Petitorios_Concesiones": ["ID_Derecho", "Codigo_Unico", "Nombre_Derecho", "ID_Administrado", "Sustancia", "Hectareas", "Estado_Fase", "Fecha_Formulacion"]
         }
         return pd.DataFrame(columns=columnas_base.get(pestana, []))
+    
+    
 
+    
 # ---- TU FUNCIÓN DE GUARDADO (¡Adaptada a tu API gratis!) ----
 def guardar_datos(df_nuevo, pestana):
     try:
-        # ⬇️ ESTA LÍNEA ES LA MAGIA: Reemplaza todos los NaN/Vacíos por texto vacío ""
+        # Volvemos a tu lógica original que funcionaba perfecto y no rompía nada
         df_limpio = df_nuevo.fillna("")
-        
-        # Convertimos el DataFrame LIMPIO a formato JSON
         datos_json = df_limpio.to_dict(orient="records")
         payload = {"pestana": pestana, "datos": datos_json}
         
-        # Enviamos los datos a tu Google Sheets
         respuesta = requests.post(URL_API, json=payload)
         
         if respuesta.text == "Éxito":
             st.success(f"¡Datos guardados con éxito en la pestaña {pestana}!")
+            
+            # ⬇️ LA SOLUCIÓN AQUÍ ⬇️
+            # Borramos la memoria interna de Streamlit para que no use datos viejos
+            st.cache_data.clear()
+            
+            # Forzamos a la página a reiniciarse y volver a leer el Excel actualizado
+            st.rerun()
         else:
             st.error("El servidor de Google no respondió correctamente.")
     except Exception as e:
         st.error(f"Error al guardar: {e}")
+
 
 
 
@@ -294,24 +312,32 @@ elif menu == "👥 Calificaciones y Límites":
         concesiones_adm = df_concesiones[df_concesiones["ID_Administrado"] == id_adm] if not df_concesiones.empty else pd.DataFrame()
         
         col_c1, col_c2 = st.columns(2)
-        with col_c1:
-            st.markdown("#### 🕒 Estado de la Calificación Minera")
-            if not calif_adm.empty and "Fecha_Emision_Constancia" in calif_adm.columns and pd.notna(calif_adm["Fecha_Emision_Constancia"].values[0]):
-                estrato_actual = calif_adm["Estrato"].values[0]
-                fecha_emision = pd.to_datetime(calif_adm["Fecha_Emision_Constancia"].values[0])
-                dias_pasados = (datetime.now() - fecha_emision).days
-                anios_pasados = dias_pasados / 365.25
-                st.write(f"**Estrato de Registro:** `{estrato_actual}`")
-                
-                if "Régimen" in estrato_actual or "General" in estrato_actual:
-                    st.success("✅ **VIGENCIA PERMANENTE:** El Régimen General no requiere renovación bienal.")
-                else:
-                    if anios_pasados > 2.0:
-                        st.error(f"🚨 **CALIFICACIÓN VENCIDA:** Han transcurrido {anios_pasados:.2f} años.")
-                    else:
-                        st.success(f"✅ **CALIFICACIÓN VIGENTE:** Vence a los 2 años. Transcurrido: {anios_pasados:.2f} años.")
+
+
+        # Línea 317: Va pegada a la izquierda del bloque actual
+    with col_c1:
+        # Línea 318 en adelante: TODO lleva un paso de sangría (Tabulador) hacia la derecha
+        st.markdown("#### 🕒 Estado de la Calificación Minera")
+        if not calif_adm.empty and "Fecha_Emision_Constancia" in calif_adm.columns and pd.notna(calif_adm["Fecha_Emision_Constancia"].values[0]):
+            estrato_actual = calif_adm["Estrato"].values[0]
+            
+            # Estas líneas llevan DOBLE paso de sangría porque están dentro del 'with' Y dentro del 'if'
+            fecha_original = pd.to_datetime(str(calif_adm["Fecha_Emision_Constancia"].values[0]))
+            fecha_emision = fecha_original.tz_localize(None) if fecha_original.tzinfo is not None else fecha_original
+            
+            dias_pasados = (datetime.now() - fecha_emision).days
+            anios_pasados = dias_pasados / 365.25
+            st.write(f"**Estrato de Registro:** `{estrato_actual}`")
+            
+            if "Régimen" in estrato_actual or "General" in estrato_actual:
+                st.success("✅ **VIGENCIA PERMANENTE:** El Régimen General no requiere renovación bienal.")
             else:
-                st.warning("No se registra fecha de emisión.")
+                if anios_pasados > 2.0:
+                    st.error(f"🚨 **CALIFICACIÓN VENCIDA:** Han transcurrido {anios_pasados:.2f} años.")
+                else:
+                    st.success(f"✅ **CALIFICACIÓN VIGENTE:** Vence a los 2 años. Transcurrido: {anios_pasados:.2f} años.")
+        else:
+            st.warning("No se registra fecha de emisión.")
                 
         with col_c2:
             st.markdown("#### 📐 Consistencia de Áreas")
