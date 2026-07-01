@@ -249,6 +249,7 @@ def obtener_url_pestana(link_base, nombre_pestana):
 
 
 # ---- TU FUNCIÓN DE CARGA (Actualizada para la nube) ----
+@st.cache_data(ttl=600)
 def cargar_datos(pestana):
     try:
         # Llamamos a tu API de Google pasándole el nombre de la pestaña
@@ -512,6 +513,7 @@ elif st.session_state["authentication_status"] == True:
                                 rol_actual, 
                                 f"Creó el Administrado: {razon_social.strip()} (ID: {id_adm_nuevo}) con Estrato: {estrato.split()[0]}"
                             )
+                    st.cache_data.clear()
                     st.success("Registrado correctamente.")
 
         with tab_reclass:
@@ -542,6 +544,7 @@ elif st.session_state["authentication_status"] == True:
                                     rol_actual, 
                                     f"Reclasificó al Administrado ID {id_adm_sel} al estrato {nuevo_estrato.split()[0]} via RD N° {nro_resolucion}"
                                 )
+                            st.cache_data.clear()
                             st.success("Reclasificación indexada en el Excel.")
 
         with tab1:
@@ -564,6 +567,7 @@ elif st.session_state["authentication_status"] == True:
                                     rol_actual, 
                                     f"Inscribió Nuevo Petitorio: {nom_der.strip().upper()} (ID: {id_der}) con {ha} Ha. asignado al Titular ID {id_adm_sel}"
                                 )
+                        st.cache_data.clear()
                         st.success(f"🎉 Petitorio '{nom_der}' guardado. Ahora puedes pasar al módulo de Seguimiento para cargar su expediente.")
 
     # ==========================================
@@ -687,6 +691,7 @@ elif st.session_state["authentication_status"] == True:
                                 rol_actual, 
                                 f"Registró Tramite Obligatorio ({id_seg_final}) para el derecho ID {id_der_sel}. Acto: {acto_oblig} | Estado: {estado_final_hito}"
                             )
+                        st.cache_data.clear()
                         st.rerun()
             else:
                 st.info("No hay concesiones mapeadas.")
@@ -749,6 +754,7 @@ elif st.session_state["authentication_status"] == True:
                                 rol_actual, 
                                 f"Declaró Hito de Ciclo Final ({id_seg_final}) para el derecho ID {id_der_sel}. Evento: {hito_para_guardar}"
                             )
+                        st.cache_data.clear()
                         st.rerun()
             else:
                 st.info("No hay concesiones mapeadas.")
@@ -822,6 +828,7 @@ elif st.session_state["authentication_status"] == True:
                                 rol_actual, 
                                 f"Registró nuevo pago ({nueva_fila_pago['ID_Pago']}) año {anio} para el derecho ID {id_der_sel} por USD {monto}. Voucher: {nro_operacion}"
                             )
+                        st.cache_data.clear()
                         st.success(f"🎉 ¡Pago del año {anio} registrado con éxito! Operación N° `{nro_operacion}` archivada.")
                         st.rerun()
             else:
@@ -1005,6 +1012,7 @@ elif st.session_state["authentication_status"] == True:
                             df_a_guardar = st.session_state.df_administrados if "df_administrados" in st.session_state else df_administrados
                             guardar_datos(df_a_guardar, "Administrados")
                             registrar_auditoria(username, rol_actual, f"Modificó datos del Administrado: {nueva_razon_social.strip()} (ID: {datos_actuales_adm['ID_Administrado']})")
+                            st.cache_data.clear()
                             st.session_state["mensaje_exito"] = "✅ ¡Cambios aplicados permanentemente en Google Sheets!"
                             st.rerun()
 
@@ -1070,6 +1078,7 @@ elif st.session_state["authentication_status"] == True:
                             df_c_guardar = st.session_state.df_concesiones if "df_concesiones" in st.session_state else df_concesiones
                             guardar_datos(df_c_guardar, "Petitorios_Concesiones")
                             registrar_auditoria(username, rol_actual, f"Modificó la Concesión: {nuevo_nombre_derecho.strip().upper()} (ID: {id_con})")
+                            st.cache_data.clear()
                             st.session_state["mensaje_exito"] = "✅ ¡Concesión modificada con éxito en Google Sheets!"
                             st.rerun()
 
@@ -1147,6 +1156,7 @@ elif st.session_state["authentication_status"] == True:
                         st.session_state["mensaje_exito"] = f"✅ ¡Vigencia {anio_sel} del derecho {id_derecho_sel} actualizada en Google Sheets!"
                        # Dentro del "if btn_guardar_vig:"
                         registrar_auditoria(username, rol_actual, f"Modificó la vigencia {anio_sel} del derecho {id_derecho_sel}")
+                        st.cache_data.clear()
                         st.rerun()
 
 
