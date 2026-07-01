@@ -799,8 +799,6 @@ elif menu == "🔧 Actualización de Datos":
     st.subheader("Centro de Modificación y Corrección del Catastro")
     st.markdown("Use este módulo para corregir errores de digitación o reflejar actualizaciones legales de titulares, derechos o estados de pago.")
 
-    ARCHIVO_OBJETIVO = "PETITORIOS MINEROS.xlsx"
-
     # Añadimos la tercera opción para Vigencias
     tipo_edicion = st.radio(
         "Seleccione el tipo de registro a modificar:",
@@ -830,8 +828,8 @@ elif menu == "🔧 Actualización de Datos":
                 st.info(f"Modificando ID_Administrado: `{datos_actuales_adm['ID_Administrado']}`")
                 
                 nueva_razon_social = st.text_input("Razón Social / Nombre Completo:", value=str(datos_actuales_adm["Razon_Social"]))
-                ruc_actual = str(datos_actuales_adm["RUC"]) if "RUC" in df_administrados.columns else ""
-                nuevo_ruc = st.text_input("Número de RUC (Opcional):", value=ruc_actual)
+                ruc_actual = str(datos_actuales_adm["RUC_DNI"]) if "RUC_DNI" in df_administrados.columns else (str(datos_actuales_adm["RUC"]) if "RUC" in df_administrados.columns else "")
+                nuevo_ruc = st.text_input("Número de RUC / DNI:", value=ruc_actual)
 
                 btn_guardar_adm = st.form_submit_button("💾 Guardar Cambios en Administrado")
 
@@ -841,22 +839,18 @@ elif menu == "🔧 Actualización de Datos":
                     else:
                         if "df_administrados" in st.session_state:
                             st.session_state.df_administrados.at[idx_adm, "Razon_Social"] = nueva_razon_social.strip()
-                            if "RUC" in st.session_state.df_administrados.columns:
-                                st.session_state.df_administrados.at[idx_adm, "RUC"] = nuevo_ruc.strip()
+                            if "RUC_DNI" in st.session_state.df_administrados.columns:
+                                st.session_state.df_administrados.at[idx_adm, "RUC_DNI"] = nuevo_ruc.strip()
                         else:
                             df_administrados.at[idx_adm, "Razon_Social"] = nueva_razon_social.strip()
-                            if "RUC" in df_administrados.columns:
-                                df_administrados.at[idx_adm, "RUC"] = nuevo_ruc.strip()
+                            if "RUC_DNI" in df_administrados.columns:
+                                df_administrados.at[idx_adm, "RUC_DNI"] = nuevo_ruc.strip()
                         
-                        try:
-                            df_a_guardar = st.session_state.df_administrados if "df_administrados" in st.session_state else df_administrados
-                            with pd.ExcelWriter(ARCHIVO_OBJETIVO, mode='a', engine='openpyxl', if_sheet_exists='replace') as writer:
-                                df_a_guardar.to_excel(writer, sheet_name='Administrados', index=False)
-                            st.success(f"✅ ¡Cambios aplicados permanentemente!")
-                            st.balloons()
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Error al escribir en Excel: {e}")
+                        # 🚀 MODIFICACIÓN: Guardar directo en Google Sheets
+                        df_a_guardar = st.session_state.df_administrados if "df_administrados" in st.session_state else df_administrados
+                        guardar_datos(df_a_guardar, "Administrados")
+                        st.session_state["mensaje_exito"] = "✅ ¡Cambios aplicados permanentemente en Google Sheets!"
+                        st.rerun()
 
     # ------------------------------------------------------------
     # OPCIÓN B: MODIFICAR CONCESIONES
@@ -916,18 +910,14 @@ elif menu == "🔧 Actualización de Datos":
                             df_concesiones.at[idx_con, "Hectareas"] = nuevas_hectareas
                             df_concesiones.at[idx_con, "ID_Administrado"] = nuevo_id_administrado
                         
-                        try:
-                            df_c_guardar = st.session_state.df_concesiones if "df_concesiones" in st.session_state else df_concesiones
-                            with pd.ExcelWriter(ARCHIVO_OBJETIVO, mode='a', engine='openpyxl', if_sheet_exists='replace') as writer:
-                                df_c_guardar.to_excel(writer, sheet_name='Concesiones', index=False)
-                            st.success(f"✅ ¡Concesión modificada con éxito!")
-                            st.balloons()
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Error al escribir en Excel: {e}")
+                        # 🚀 MODIFICACIÓN: Guardar directo en Google Sheets
+                        df_c_guardar = st.session_state.df_concesiones if "df_concesiones" in st.session_state else df_concesiones
+                        guardar_datos(df_c_guardar, "Petitorios_Concesiones")
+                        st.session_state["mensaje_exito"] = "✅ ¡Concesión modificada con éxito en Google Sheets!"
+                        st.rerun()
 
     # ------------------------------------------------------------
-    # OPCIÓN C: MODIFICAR VIGENCIAS / OBLIGACIONES FINANCIERAS (NUEVO)
+    # OPCIÓN C: MODIFICAR VIGENCIAS / OBLIGACIONES FINANCIERAS (CON FILTRO DE AÑO)
     # ------------------------------------------------------------
     elif tipo_edicion == "💳 Datos de Vigencias / Pagos":
         if df_vigencias.empty:
@@ -935,24 +925,36 @@ elif menu == "🔧 Actualización de Datos":
         else:
             st.write("### Control de Obligaciones Financieras y Pagos")
             
-            # Cruzamos temporalmente con concesiones para armar un selector entendible (ID - Nombre)
             df_vig_mod = df_vigencias.copy()
+            
+            # 1. Cruzamos con concesiones para tener el nombre visible
             if not df_concesiones.empty:
                 df_vig_mod = df_vig_mod.merge(df_concesiones[["ID_Derecho", "Nombre_Derecho"]], on="ID_Derecho", how="left")
-                df_vig_mod["Selector_Vigencia"] = df_vig_mod["ID_Derecho"].astype(str) + " - " + df_vig_mod["Nombre_Derecho"].fillna("Sin Nombre").astype(str)
+                df_vig_mod["Nombre_Derecho"] = df_vig_mod["Nombre_Derecho"].fillna("Sin Nombre")
             else:
-                df_vig_mod["Selector_Vigencia"] = df_vig_mod["ID_Derecho"].astype(str)
+                df_vig_mod["Nombre_Derecho"] = "Sin Nombre"
+                
+            # 2. Creamos un selector limpio combinando: ID - Nombre - Año
+            df_vig_mod["Selector_Vigencia"] = (
+                df_vig_mod["ID_Derecho"].astype(str) + " - " + 
+                df_vig_mod["Nombre_Derecho"].astype(str) + " (Año: " + 
+                df_vig_mod["Anio_Vigencia"].astype(str) + ")"
+            )
                 
             lista_obligaciones = sorted(df_vig_mod["Selector_Vigencia"].unique())
-            vigencia_a_editar = st.selectbox("Seleccione la Obligación del Derecho a modificar:", lista_obligaciones, key="sb_edit_vig")
+            vigencia_a_editar = st.selectbox("Seleccione la Obligación (Derecho y Año) a modificar:", lista_obligaciones, key="sb_edit_vig")
             
-            # Ubicar el índice real en la estructura base
-            id_derecho_sel = df_vig_mod[df_vig_mod["Selector_Vigencia"] == vigencia_a_editar]["ID_Derecho"].values[0]
-            idx_vig = df_vigrencias[df_vigencias["ID_Derecho"] == id_derecho_sel].index[0] if 'df_vigrencias' in locals() else df_vigencias[df_vigencias["ID_Derecho"] == id_derecho_sel].index[0]
+            # 3. Extraemos el ID_Derecho y el Año exactos del registro seleccionado
+            fila_seleccionada = df_vig_mod[df_vig_mod["Selector_Vigencia"] == vigencia_a_editar].iloc[0]
+            id_derecho_sel = fila_seleccionada["ID_Derecho"]
+            anio_sel = fila_seleccionada["Anio_Vigencia"]
+            
+            # 4. Buscamos el índice real en la tabla original que cumpla AMBAS condiciones (ID y Año)
+            idx_vig = df_vigencias[(df_vigencias["ID_Derecho"] == id_derecho_sel) & (df_vigencias["Anio_Vigencia"] == anio_sel)].index[0]
             datos_actuales_vig = df_vigencias.loc[idx_vig]
 
             with st.form("form_editar_vigencia"):
-                st.markdown(f"Modificando Obligaciones del Derecho ID: `{id_derecho_sel}`")
+                st.markdown(f"Modificando Obligaciones del Derecho ID: `{id_derecho_sel}` para el Año: `{anio_sel}`")
                 col_v1, col_v2 = st.columns(2)
                 
                 with col_v1:
@@ -974,7 +976,7 @@ elif menu == "🔧 Actualización de Datos":
                 btn_guardar_vig = st.form_submit_button("💾 Actualizar Estado de Cuenta / Vigencia")
 
                 if btn_guardar_vig:
-                    # 1. Modificar en Session State o memoria local
+                    # Modificamos en la memoria local respetando el índice exacto de ese año
                     if "df_vigencias" in st.session_state:
                         st.session_state.df_vigencias.at[idx_vig, "Monto_USD"] = nuevo_monto
                         st.session_state.df_vigencias.at[idx_vig, "Estado_Pago"] = nuevo_estado
@@ -982,16 +984,12 @@ elif menu == "🔧 Actualización de Datos":
                         df_vigencias.at[idx_vig, "Monto_USD"] = nuevo_monto
                         df_vigencias.at[idx_vig, "Estado_Pago"] = nuevo_estado
                     
-                    # 2. Persistir permanentemente en el archivo Excel (Pestaña 'Vigencias')
-                    try:
-                        df_v_guardar = st.session_state.df_vigencias if "df_vigencias" in st.session_state else df_vigencias
-                        with pd.ExcelWriter(ARCHIVO_OBJETIVO, mode='a', engine='openpyxl', if_sheet_exists='replace') as writer:
-                            df_v_guardar.to_excel(writer, sheet_name='Vigencias', index=False) # Cambia 'Vigencias' si tu pestaña de pagos se llama diferente
-                        st.success("✅ ¡Estado financiero de vigencia actualizado con éxito!")
-                        st.balloons()
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error al escribir en Excel: {e}. Cierra el archivo si lo tienes abierto.")
+                    # Enviamos la tabla completa actualizada a Google Sheets
+                    df_v_guardar = st.session_state.df_vigencias if "df_vigencias" in st.session_state else df_vigencias
+                    guardar_datos(df_v_guardar, "Control_Vigencias")
+                    st.session_state["mensaje_exito"] = f"✅ ¡Vigencia {anio_sel} del derecho {id_derecho_sel} actualizada en Google Sheets!"
+                    st.rerun()
+
 
 # ---- PIE DE PÁGINA CORPORATIVO ----
 st.markdown('<div class="footer">BIOTERRA — Consultoría y Gestión Ambiental Minera S.A.C.</div>', unsafe_allow_html=True)
