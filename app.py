@@ -228,7 +228,7 @@ def guardar_datos(df_nuevo, pestana):
             st.cache_data.clear()
             
             # Forzamos a la página a reiniciarse y volver a leer el Excel actualizado
-            st.rerun()
+           
         else:
             st.error("El servidor de Google no respondió correctamente.")
     except Exception as e:
